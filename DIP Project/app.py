@@ -122,5 +122,31 @@ if uploaded:
                     """,
                     unsafe_allow_html=True
                 )
+# Show current report
+st.markdown("---")
+st.header("📊 Current Waste Classification Report")
+log_df = load_log()
+report_text = build_report(classes, log_df)
+st.code(report_text, language="text")
+
+# Download buttons
+st.download_button("⬇️ Download report (TXT)", data=report_text, file_name="waste_classification_report.txt", mime="text/plain")
+if os.path.exists(LOG_PATH):
+    with open(LOG_PATH, "rb") as f:
+        st.download_button("⬇️ Download full prediction log (CSV)", data=f, file_name="predictions_log.csv", mime="text/csv")
+
+# Small controls
+st.markdown("---")
+col1, col2 = st.columns(2)
+with col1:
+    if st.button("📋 Show raw log table"):
+        st.dataframe(log_df.sort_values("timestamp", ascending=False).head(200))
+with col2:
+    if st.button("🗑️ Reset/Delete log"):
+        if os.path.exists(LOG_PATH):
+            os.remove(LOG_PATH)
+        st.rerun()  # ✅ modern Streamlit
+
+st.caption("ℹ️ Notes: The app appends a row for every prediction to Document.csv. This file is used to compute the report.")
 
 
