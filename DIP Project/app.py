@@ -12,7 +12,45 @@ MODEL_PATH = "resnet50_best.h5"
 LOG_PATH = "Document.csv"
 CLASSES = ['battery', 'glass', 'metal', 'organic', 'paper', 'plastic']
 
-st.set_page_config(page_title="Waste Classifier", layout="centered")
+# Streamlit Page Settings
+st.set_page_config(
+    page_title="♻️ Smart Waste Classifier",
+    page_icon="♻️",
+    layout="wide"
+)
+
+# Custom CSS for professional UI
+st.markdown("""
+<style>
+    /* General */
+    .main { background-color: #f9f9f9; }
+    h1, h2, h3, h4 { font-family: 'Segoe UI', sans-serif; }
+    .stButton>button {
+        border-radius: 12px;
+        padding: 10px 20px;
+        background-color: #2ecc71;
+        color: white;
+        border: none;
+        font-weight: 600;
+    }
+    .stButton>button:hover {
+        background-color: #27ae60;
+    }
+    /* Prediction Card */
+    .pred-card {
+        padding: 15px;
+        margin: 12px 0;
+        border-radius: 12px;
+        background: #ffffff;
+        border-left: 6px solid #2ecc71;
+        box-shadow: 0px 4px 8px rgba(0,0,0,0.1);
+    }
+    .pred-title { font-size: 20px; font-weight: bold; margin-bottom: 5px; color: #145a32; }
+    .pred-label { font-size: 22px; font-weight: bold; color: #27ae60; }
+    /* Footer */
+    .footer { text-align:center; margin-top: 30px; color: #777; font-size: 14px; }
+</style>
+""", unsafe_allow_html=True)
 
 # HELPERS
 def get_cache_decorator():
@@ -46,7 +84,7 @@ def preprocess_pil(img: Image.Image, target_size):
     img = img.resize(target_size)
     arr = np.asarray(img).astype("float32")
     arr = np.expand_dims(arr, axis=0)
-    arr = preprocess_input(arr)  # Proper ResNet50 preprocessing
+    arr = preprocess_input(arr)
     return arr
 
 def append_log(label, log_path=LOG_PATH):
@@ -71,23 +109,29 @@ def build_report(classes, log_df):
         lines.append(f"{c}: {counts.get(c, 0)}")
     return "\n".join(lines)
 
-# UI
-st.title("♻️ Waste Classifier")
-st.write("Upload images and get predictions. A persistent log is kept so you can download the report anytime.")
+# ------------------- UI -------------------
 
-# Load model
+st.title("♻️ Smart Waste Classifier")
+st.write("Upload waste images to classify them using a trained CNN model. A persistent log is kept for reporting 📊.")
+
+# Load Model
 try:
     model, classes = load_model()
     target_size = infer_target_size(model)
 except Exception as e:
-    st.error(f"Error loading model: {e}")
+    st.error(f"⚠️ Error loading model: {e}")
     st.stop()
 
-# Uploading images
-uploaded = st.file_uploader("📂 Upload one or multiple images", type=["png","jpg","jpeg"], accept_multiple_files=True)
+# File uploader
+uploaded = st.file_uploader(
+    "📂 Upload waste images (PNG, JPG, JPEG)", 
+    type=["png", "jpg", "jpeg"], 
+    accept_multiple_files=True
+)
 
+# Prediction Section
 if uploaded:
-    if st.button("🚀 Predict and Log"):
+    if st.button("🚀 Run Predictions"):
         results = []
         progress = st.progress(0)
         n = len(uploaded)
@@ -103,50 +147,50 @@ if uploaded:
             except Exception as err:
                 results.append((uf.name, None, str(err)))
             progress.progress(int(((i+1)/n) * 100))
-        st.success("✅ Predictions done and logged.")
+        st.success("✅ Predictions completed!")
 
-        # 🎨 Show results with styling
+        # Styled Prediction Cards
         for name, label, err in results:
             if err:
                 st.error(f"❌ {name} → ERROR: {err}")
             else:
                 st.markdown(
                     f"""
-                    <div style="padding:15px; margin:10px 0; border-radius:12px; 
-                                background-color:#e6ffe6; border:2px solid #2ecc71;">
-                        <h4 style="color:#27ae60; margin:0;">📌 {name}</h4>
-                        <p style="font-size:22px; font-weight:bold; color:#145a32; margin:5px 0;">
-                            Prediction → {label}
-                        </p>
+                    <div class="pred-card">
+                        <div class="pred-title">📌 {name}</div>
+                        <div class="pred-label">Prediction → {label}</div>
                     </div>
                     """,
                     unsafe_allow_html=True
                 )
-# Show current report
+
+# Report Section
 st.markdown("---")
-st.header("📊 Current Waste Classification Report")
+st.header("📊 Waste Classification Report")
 log_df = load_log()
 report_text = build_report(classes, log_df)
 st.code(report_text, language="text")
 
-# Download buttons
-st.download_button("⬇️ Download report (TXT)", data=report_text, file_name="waste_classification_report.txt", mime="text/plain")
-if os.path.exists(LOG_PATH):
-    with open(LOG_PATH, "rb") as f:
-        st.download_button("⬇️ Download full prediction log (CSV)", data=f, file_name="predictions_log.csv", mime="text/csv")
+# Download Buttons
+col1, col2 = st.columns(2)
+with col1:
+    st.download_button("⬇️ Download Report (TXT)", data=report_text, file_name="waste_report.txt", mime="text/plain")
+with col2:
+    if os.path.exists(LOG_PATH):
+        with open(LOG_PATH, "rb") as f:
+            st.download_button("⬇️ Download Full Log (CSV)", data=f, file_name="predictions_log.csv", mime="text/csv")
 
-# Small controls
+# Extra Controls
 st.markdown("---")
 col1, col2 = st.columns(2)
 with col1:
-    if st.button("📋 Show raw log table"):
+    if st.button("📋 Show Recent Predictions"):
         st.dataframe(log_df.sort_values("timestamp", ascending=False).head(200))
 with col2:
-    if st.button("🗑️ Reset/Delete log"):
+    if st.button("🗑️ Reset Log"):
         if os.path.exists(LOG_PATH):
             os.remove(LOG_PATH)
-        st.rerun()  # ✅ modern Streamlit
+        st.rerun()
 
-st.caption("ℹ️ Notes: The app appends a row for every prediction to Document.csv. This file is used to compute the report.")
-
-
+# Footer
+st.markdown('<div class="footer">Developed with ❤️ using Streamlit & TensorFlow</div>', unsafe_allow_html=True)
